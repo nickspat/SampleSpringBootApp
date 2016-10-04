@@ -102,7 +102,8 @@ def version() {
 }
 
 def deploy_gcp() {
-	def PROJECT = sh(returnStdout: true, script: '/usr/share/google/get_metadata_value project-id').trim()
+	//def PROJECT = sh(returnStdout: true, script: '/usr/share/google/get_metadata_value project-id').trim()
+	def PROJECT = sh(returnStdout: true, script: 'curl "http://metadata.google.internal/computeMetadata/v1/project/project-id" -H "Metadata-Flavor: Google"')
 	def CDM_TEMPLATE_VERSION = 'v2.0.10'
 	//hammer --show-version
 	def CONSUL_HEALTH_URI='catalog/admin/health'
