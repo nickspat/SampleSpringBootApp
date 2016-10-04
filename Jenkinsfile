@@ -4,7 +4,7 @@ import groovy.transform.Field
 @Field def mesg = ''
 if (env.BRANCH_NAME == 'develop') {
 	stage 'Develop'
-		node {
+		node('maven') {
 			set_properties()
 			mesg = sh(returnStdout: true, script: 'git log -n 1 --pretty=format:\'%s%n%n%b\'').trim()
 			stage 'Build-Compile'
@@ -15,17 +15,17 @@ if (env.BRANCH_NAME == 'develop') {
 		  		package_upload()		  	
 		}
 	stage 'Deploy_HD-WWW-DEV'
-		node {
+		node('maven') {
 		  		deploy_gcp()
 		  	}
 	stage 'Other-Test'
 		  		parallel 'sonar':{
-		  				node {
+		  				node('maven') {
 		  					echo 'Running sonar test'
 		  					sonar_test()
 		  				}
 		  			}, 'performance':{
-		  				node {
+		  				node('k8s') {
 		  					
 		  					if (mesg =~ 'run-perf-test') {
 								echo "Starting load test"
@@ -36,7 +36,7 @@ if (env.BRANCH_NAME == 'develop') {
 		  				}
 
 		  				}, 'security': {
-		  					node {
+		  					node('k8s') {
 		  						
 		  						if (mesg =~ '-run-security-scan') {
 									echo 'Starting security scan'
@@ -49,7 +49,7 @@ if (env.BRANCH_NAME == 'develop') {
 		  				}
 } else if (env.BRANCH_NAME == 'stage' || env.BRANCH_NAME == 'master') {
 		stage 'Stage'
-		node {
+		node('maven') {
 			stage 'Build-Compile'
 				build_java()
 			stage 'Deploy_HD-WWW-STAGE'
