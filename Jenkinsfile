@@ -23,7 +23,7 @@ if (env.BRANCH_NAME == 'develop') {
 		  		//package_upload()		  	
 		}
 	stage 'Deploy_HD-WWW-DEV'
-		node('maven') {
+		node('k8s') {
 		  		deploy_gcp()
 		  	}
 	stage 'Other-Test'
@@ -57,15 +57,19 @@ if (env.BRANCH_NAME == 'develop') {
 		  				}
 } else if (env.BRANCH_NAME == 'stage' || env.BRANCH_NAME == 'master') {
 		stage 'Stage'
-		node('maven') {
-			checkout scm
-			set_properties()
 
-			stage 'Build-Compile'
-				build_java()
-			stage 'Deploy_HD-WWW-STAGE'
-		  		deploy_gcp()
-		}
+			node('maven') {
+				checkout scm
+				set_properties()
+
+				stage 'Build-Compile'
+					build_java()
+				
+			}
+		stage 'Deploy_HD-WWW-STAGE'
+			node('k8s') { 
+				deploy_gcp()
+			}
 } else {
 	//feature
 
@@ -75,8 +79,7 @@ def set_properties() {
 	sh 'mvn clean antrun:run@generate-properties -U'
 	def d = [test: 'Default', something: 'Default', other: 'Default']
 	def BUILD_PROPERTIES = readProperties(defaults: d, file: TMPDIR + '/spring-boot-sample-simple.properties', text: 'other=Override')
-	ARTIFACT_ID = BUILD_PROPERTIES['project.artifactId']
-	
+	ARTIFACT_ID = BUILD_PROPERTIES['project.artifactId']	
 	VERSION= BUILD_PROPERTIES['project.version']
 	GROUP_ID= BUILD_PROPERTIES['project.groupId']
 }
