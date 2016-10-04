@@ -2,9 +2,17 @@
 import groovy.transform.Field
 @Field def ARTIFACT_ID = ''
 @Field def mesg = ''
+@Field def GROUP_ID= ''
+@Field def VERSION= ''
+	//def CDM_TMPL_URL = 'https://storage.googleapis.com/'+PROJECT+'-bootstrap/cdm-template-version.txt'
+	//def httpRequestObject= httpRequest CDM_TMPL_URL
+	//def CDM_TEMPLATE_VERSION = httpRequestObject.content
+
+
 if (env.BRANCH_NAME == 'develop') {
 	stage 'Develop'
 		node('maven') {
+			checkout_code()
 			set_properties()
 			mesg = sh(returnStdout: true, script: 'git log -n 1 --pretty=format:\'%s%n%n%b\'').trim()
 			stage 'Build-Compile'
@@ -12,10 +20,10 @@ if (env.BRANCH_NAME == 'develop') {
 			stage 'Unit-Test'
 				unit_test()		  
 		  	stage 'Package-Upload' 	  
-		  		package_upload()		  	
+		  		//package_upload()		  	
 		}
 	stage 'Deploy_HD-WWW-DEV'
-		node('maven') {
+		node('k8s') {
 		  		deploy_gcp()
 		  	}
 	stage 'Other-Test'
@@ -49,12 +57,19 @@ if (env.BRANCH_NAME == 'develop') {
 		  				}
 } else if (env.BRANCH_NAME == 'stage' || env.BRANCH_NAME == 'master') {
 		stage 'Stage'
-		node('maven') {
-			stage 'Build-Compile'
-				build_java()
-			stage 'Deploy_HD-WWW-STAGE'
-		  		deploy_gcp()
-		}
+
+			node('maven') {
+				checkout scm
+				set_properties()
+
+				stage 'Build-Compile'
+					build_java()
+				
+			}
+		stage 'Deploy_HD-WWW-STAGE'
+			node('k8s') { 
+				deploy_gcp()
+			}
 } else {
 	//feature
 
@@ -64,11 +79,15 @@ def set_properties() {
 	sh 'mvn clean antrun:run@generate-properties -U'
 	def d = [test: 'Default', something: 'Default', other: 'Default']
 	def BUILD_PROPERTIES = readProperties(defaults: d, file: TMPDIR + '/spring-boot-sample-simple.properties', text: 'other=Override')
-	ARTIFACT_ID = BUILD_PROPERTIES['project.artifactId']
+	ARTIFACT_ID = BUILD_PROPERTIES['project.artifactId']	
+	VERSION= BUILD_PROPERTIES['project.version']
+	GROUP_ID= BUILD_PROPERTIES['project.groupId']
 }
-	
-def build_java() {
+
+def checkout_code(){
 	checkout scm
+}
+def build_java() {	
 	sh 'mvn clean compile'	
 }
 
@@ -86,29 +105,21 @@ def version() {
 }
 
 def deploy_gcp() {
-	//- if test -z "$TMPDIR" ; then export TMPDIR="/tmp" ; fi
-	def TMPDIR = '/tmp'
-	def PROJECT = sh(returnStdout: true, script: '/usr/share/google/get_metadata_value project-id').trim()
-	
-	def d = [test: 'Default', something: 'Default', other: 'Default']
-	def BUILD_PROPERTIES = readProperties(defaults: d, file: TMPDIR + '/spring-boot-sample-simple.properties', text: 'other=Override')
-	def GROUP_ID= BUILD_PROPERTIES['project.groupId']
-	def VERSION= BUILD_PROPERTIES['project.version']
-	//def CDM_TMPL_URL = 'https://storage.googleapis.com/'+PROJECT+'-bootstrap/cdm-template-version.txt'
-	//def httpRequestObject= httpRequest CDM_TMPL_URL
-	//def CDM_TEMPLATE_VERSION = httpRequestObject.content
+	//def PROJECT = sh(returnStdout: true, script: '/usr/share/google/get_metadata_value project-id').trim()
+	def PROJECT = sh(returnStdout: true, script: 'curl "http://metadata.google.internal/computeMetadata/v1/project/project-id" -H "Metadata-Flavor: Google"')
 	def CDM_TEMPLATE_VERSION = 'v2.0.10'
 	//hammer --show-version
 	def CONSUL_HEALTH_URI='catalog/admin/health'
 	def HEALTH_CHECK_URI="/" + CONSUL_HEALTH_URI
 	def HEALTH_CHECK_PORT=8080
-
 	echo PROJECT
 	echo VERSION
 	echo ARTIFACT_ID
 	echo GROUP_ID
 	echo CDM_TEMPLATE_VERSION
+	//- if test -z "$TMPDIR" ; then export TMPDIR="/tmp" ; fi
 
+	checkout_code()
 	//sh 'gsutil rsync -d -r bootstrap/ gs://'+PROJECT+'-artifacts/releases/'+GROUP_ID+'/'+ARTIFACT_ID+'/'+VERSION+'/data-load/bootstrap/deploy_autohealing.sh -d olt-app-'+ARTIFACT_ID+'-ah -t ./patterns/autohealing.jinja -u '+HEALTH_CHECK_URI+' -p '+HEALTH_CHECK_PORT
 	sh 'cp hammer-properties.yaml hammer-properties.yaml.orig'
 	sh 'sed -i.bak \'s/%VERSION%/'+VERSION+'/g\' hammer-properties.yaml'
