@@ -5,6 +5,7 @@ import groovy.transform.Field
 if (env.BRANCH_NAME == 'develop') {
 	stage 'Develop'
 		node('maven') {
+			checkout scm
 			set_properties()
 			mesg = sh(returnStdout: true, script: 'git log -n 1 --pretty=format:\'%s%n%n%b\'').trim()
 			stage 'Build-Compile'
@@ -68,7 +69,7 @@ def set_properties() {
 }
 	
 def build_java() {
-	checkout scm
+	
 	sh 'mvn clean compile'	
 }
 
