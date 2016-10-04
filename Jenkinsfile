@@ -51,6 +51,9 @@ if (env.BRANCH_NAME == 'develop') {
 } else if (env.BRANCH_NAME == 'stage' || env.BRANCH_NAME == 'master') {
 		stage 'Stage'
 		node('maven') {
+			checkout scm
+			set_properties()
+
 			stage 'Build-Compile'
 				build_java()
 			stage 'Deploy_HD-WWW-STAGE'
